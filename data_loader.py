@@ -41,9 +41,19 @@ class EGMDataset(Dataset):
             afib_label = self.label_flip(afib_label)
         
         afib_token = f"afib_{int(afib_label)}" 
+
+        if np.isnan(signal).any():
+            print(f"WARNING: NaNs found in raw signal at index {index}, key {key}")
+            # optionally: print some values
+            print(signal)
+            print("sample NaN indices:", np.where(np.isnan(signal))[0][:20])
         
         min_val, max_val = np.min(signal), np.max(signal)
-        normalized_signal = (signal - min_val) / (max_val - min_val)
+        den = max_val - min_val
+        if den == 0:
+            normalized_signal = np.zeros_like(signal)
+        else:
+            normalized_signal = (signal - min_val) / den
         quantized_signal = np.floor(normalized_signal * self.signal_size).astype(int)
         quantized_signal_tokens = [f"signal_{i}" for i in quantized_signal]
         

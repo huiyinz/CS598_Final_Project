@@ -14,6 +14,21 @@ class ScheduledOptim():
         self._update_learning_rate()
         self._optimizer.step()
 
+
+    def state_dict(self):
+        return {
+            'optimizer': self._optimizer.state_dict(),
+            'n_current_steps': self.n_current_steps,
+            'n_warmup_steps': self.n_warmup_steps,
+            'init_lr': self.init_lr
+        }
+
+    def load_state_dict(self, state):
+        self._optimizer.load_state_dict(state['optimizer'])
+        self.n_current_steps = state['n_current_steps']
+        self.n_warmup_steps = state['n_warmup_steps']
+        self.init_lr = state['init_lr']
+
     def zero_grad(self):
         "Zero out the gradients by the inner optimizer"
         self._optimizer.zero_grad()

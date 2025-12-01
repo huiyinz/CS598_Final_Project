@@ -2,6 +2,7 @@ import os
 import wfdb
 import numpy as np
 import argparse
+import re
 
 def get_args():
     parser = argparse.ArgumentParser(description=None)
@@ -36,6 +37,7 @@ def segment_signal(data, segment_length, step_size = None):
 
 def read_all(path):
     all_signals = []
+    labels = []
     for i in os.listdir(path):
         if 'qrs' in i:
             file_name = i.split('.')[0]
@@ -43,12 +45,20 @@ def read_all(path):
             egm_signals = record.p_signal[:, 3:]
             all_signals.append(egm_signals)
 
+            for comment in record.comments:
+              matches = re.findall(r'<(.*?)>:\s*(.*?)(?=\s*<|$)', comment)
+              for key, value in matches:
+                  if key == 'diagnosis':
+                    if 'Atrial Fibrillation' in value:
+                      labels.append(1)
+                    else: labels.append(0)
+
     min_shape = min(array.shape[0] for array in all_signals)
     sliced_arrays = [array[:min_shape] for array in all_signals]
 
     stacked_array = np.stack(sliced_arrays, axis=-1)
     
-    return stacked_array
+    return stacked_array, labels
 
 
 def split_dict_by_catheter_afib(input_dict):
@@ -72,7 +82,8 @@ def ensure_directory_exists(directory_path):
         print(f"Directory already exists: {directory_path}")
 
 def main(args):
-    egm_signals = read_all(args)
+    args = get_args()
+    egm_signals, labels = read_all(args.path)
     normalized_egm = z_score_normalization(egm_signals)
     segmented_data = segment_signal(normalized_egm, 1000)
 
@@ -81,7 +92,7 @@ def main(args):
     for i in range(n_electrodes):
         for j in range(n_placements):
             for k in range(n_segments):
-                key = (i, j, k, 1)
+                key = (i, j, k, labels[j])
                 segmented_data_dict[key] = segmented_data[k, :, i, j]
 
     feature_dicts = {

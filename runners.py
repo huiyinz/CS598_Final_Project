@@ -25,7 +25,7 @@ def trainer(model, train_dataloader, optimizer, device, args, ce = None):
             batch_data, tokenized_sample, concat, mask, batch_attention_mask, _, _, _, = batch
             batch_data, tokenized_sample, concat, mask, batch_attention_mask = batch_data.to(device), tokenized_sample.to(device), concat.to(device), mask.to(device), batch_attention_mask.to(device)
 
-            if args.model == 'big' or args.model == 'clin_bird' or args.model == 'raw_big':
+            if args.model == 'big' or args.model == 'big_ablated' or args.model == 'clin_bird' or args.model == 'raw_big':
                 outputs = model(input_ids = batch_data, attention_mask = batch_attention_mask, labels = tokenized_sample, output_hidden_states = True)
                 logits = outputs.logits
                 
@@ -76,7 +76,7 @@ def validate(model, val_dataloader, device, args, ce = None):
             else:
                 batch_data, tokenized_sample, concat, mask, batch_attention_mask, _,  _, _, = batch
                 batch_data, tokenized_sample, concat, mask, batch_attention_mask = batch_data.to(device), tokenized_sample.to(device), concat.to(device), mask.to(device), batch_attention_mask.to(device)
-                if args.model == 'big' or args.model == 'clin_bird' or args.model == 'raw_big':
+                if args.model == 'big' or args.model == 'big_ablated' or args.model == 'clin_bird' or args.model == 'raw_big':
                     outputs = model(input_ids = batch_data, attention_mask = batch_attention_mask, labels = tokenized_sample, output_hidden_states = True)
                     logits = outputs.logits
                 if args.model == 'long' or args.model == 'clin_long' or args.model == 'raw_long':
@@ -124,15 +124,12 @@ def decode_from_tokens(tokenizer, tokens, signal_size, min_vals, max_vals, args)
     decoded_afibs = []
     for i in range(tokens.shape[0]):
         output_tokens = tokenizer.convert_ids_to_tokens(tokens[i])
-        
         quantized_signal = torch.tensor([extract_value(token) for token in output_tokens[1:1001]]).to(args.device)
-            
-    
         quantized_afib = torch.tensor([extract_value(token) for token in [output_tokens[-2]]]).to(args.device)
-                
+
         min_val = min_vals[i]
         max_val = max_vals[i]
-        
+
         # Decode signal
         normalized_signal_values = (quantized_signal - 1) / (signal_size - 1)
         decoded_signal = normalized_signal_values * (max_val - min_val) + min_val
@@ -178,7 +175,7 @@ def inference(model, tokenizer, test_dataloader, device, args):
             else:
                 batch_data, tokenized_sample, batch_raw, batch_mask, batch_attention_mask, key, min_val, max_val = batch
                 batch_data, tokenized_sample, batch_raw, batch_mask, batch_attention_mask, min_val, max_val = batch_data.to(device), tokenized_sample.to(device), batch_raw.to(device), batch_mask.to(device), batch_attention_mask.to(device), min_val.to(device), max_val.to(device)
-                if args.model == 'big' or args.model == 'clin_bird' or args.model == 'raw_big':
+                if args.model == 'big' or args.model == 'big_ablated' or args.model == 'clin_bird' or args.model == 'raw_big':
                     outputs = model(input_ids = batch_data, attention_mask = batch_attention_mask, output_attentions = True)
                     logits = outputs.logits
                     preds = torch.argmax(logits, dim=-1)        
@@ -230,7 +227,7 @@ def inference(model, tokenizer, test_dataloader, device, args):
                     'max_val': max_val
                 }
             
-            if args.model == 'big' or args.model == 'clin_bird' or args.model == 'clin_long' or args.model == 'long' or args.model == 'raw_big' or args.model == 'raw_long':
+            if args.model == 'big' or args.model == 'big_ablated' or args.model == 'clin_bird' or args.model == 'clin_long' or args.model == 'long' or args.model == 'raw_big' or args.model == 'raw_long':
                 decoded_signal, decoded_afib = decode_from_tokens(tokenizer, preds, new_args['signal_size'], new_args['min_val'],new_args['max_val'], args)
                 decoded = torch.cat([decoded_signal, decoded_afib], dim=1)
 
@@ -254,11 +251,11 @@ def inference(model, tokenizer, test_dataloader, device, args):
                     pred_afib.append(afib_stitched)
                     
                     # MSE for signal
-                    mse_signal = mean_squared_error(stitched_seq, ground_truth_seq)
+                    mse_signal = mean_squared_error(stitched_seq[:1000], ground_truth_seq[:1000])
                     MSEs_signals.append(mse_signal)
                     
                     # MAE for signal
-                    mae_signal = mean_absolute_error(stitched_seq, ground_truth_seq)
+                    mae_signal = mean_absolute_error(stitched_seq[:1000], ground_truth_seq[:1000])
                     MAEs_signals.append(mae_signal)
 
                     # Acc for Elec 

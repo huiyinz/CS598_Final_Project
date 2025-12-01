@@ -112,6 +112,16 @@ if __name__ == '__main__':
         model.resize_token_embeddings(len(tokenizer))
         model_hidden_size = model.config.hidden_size
     
+    if args.model == 'big_ablated':
+        tokenizer = BigBirdTokenizer.from_pretrained("google/bigbird-roberta-base")
+        model = BigBirdForMaskedLM.from_pretrained("google/bigbird-roberta-base")
+        model.config.attention_type = 'block_sparse'
+        num_added_tokens = tokenizer.add_tokens(custom_tokens)
+        model.resize_token_embeddings(len(tokenizer))
+        model_hidden_size = model.config.hidden_size
+        for param in model.parameters():
+            param.requires_grad = False
+    
     if args.model =='clin_bird':
         model = AutoModelForMaskedLM.from_pretrained("yikuan8/Clinical-BigBird").to(device)
         model.config.attention_type = 'original_full'
