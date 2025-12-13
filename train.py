@@ -36,10 +36,25 @@ def get_args():
     parser.add_argument('--TA', action='store_true', help = 'Please choose whether to do Token Addition')
     parser.add_argument('--LF', action='store_true', help = 'Please choose whether to do label flipping')
     parser.add_argument('--toy', action = 'store_true', help = 'Please choose whether to use a toy dataset or not')
+    parser.add_argument('--norm_loss', type=float, default=0.0, help='normalization loss weight (optional)')
     parser.add_argument('--inference', action='store_true', help = 'Please choose whether it is inference or not')
     return parser.parse_args()
     
-    
+def load_checkpoint_if_exists(model, optimizer, directory_path, device):
+    checkpoint_path = f'./{directory_path}/best_checkpoint.chkpt'
+    if os.path.exists(checkpoint_path):
+        print(f"Loading checkpoint from {checkpoint_path}")
+        checkpoint = torch.load(checkpoint_path, map_location=device)
+        model.load_state_dict(checkpoint['model'])
+        optimizer.load_state_dict(checkpoint['optimizer'])
+        start_epoch = checkpoint['epoch'] + 1
+        print(f"Resuming training from epoch {start_epoch}")
+        return start_epoch
+    else:
+        print("No checkpoint found. Starting training from scratch.")
+        return 0    
+
+
 def create_toy(dataset, spec_ind):
     toy_dataset = {}
     for i in dataset.keys():
@@ -91,6 +106,14 @@ def main():
     if args.model == 'big':
         model = BigBirdForMaskedLM.from_pretrained("google/bigbird-roberta-base").to(device)
         model.config.attention_type = 'original_full'
+        tokenizer = BigBirdTokenizer.from_pretrained("google/bigbird-roberta-base")
+        tokenizer.add_tokens(custom_tokens)
+        model.resize_token_embeddings(len(tokenizer))
+        model_hidden_size = model.config.hidden_size
+
+    if args.model == 'big_ablated':
+        model = BigBirdForMaskedLM.from_pretrained("google/bigbird-roberta-base").to(device)
+        model.config.attention_type = 'block_sparse'
         tokenizer = BigBirdTokenizer.from_pretrained("google/bigbird-roberta-base")
         tokenizer.add_tokens(custom_tokens)
         model.resize_token_embeddings(len(tokenizer))
@@ -179,7 +202,14 @@ def main():
     train_losses = []
     val_losses = []
     all_epochs = []
-    for epoch in range(args.epochs):
+
+    try:
+        start_epoch = load_checkpoint_if_exists(model, optimizer, directory_path, device)
+    except:
+        print("No checkpoint found. Starting training from scratch.")
+        start_epoch = 0
+
+    for epoch in range(start_epoch, args.epochs):
         
         all_epochs.append(epoch)
         train_loss = trainer(model, train_loader, optimizer, device, args, ce_loss)
@@ -191,12 +221,21 @@ def main():
         val_losses.append(val_loss)
         
         model_state_dict = model.state_dict()
-            
-        checkpoint = {
-            'model' : model_state_dict,
-            'config_file' : 'config',
-            'epoch' : epoch
-        }
+        
+        try:
+            checkpoint = {
+                'model' : model_state_dict,
+                'optimizer': optimizer.state_dict(),
+                'config_file' : 'config',
+                'epoch' : epoch
+            }
+        except:
+            print("Optimizer state dict not found.")
+            checkpoint = {
+                'model' : model_state_dict,
+                'config_file' : 'config',
+                'epoch' : epoch
+            }
         
         if val_loss <= min(val_losses):
             torch.save(checkpoint, f'./{directory_path}/best_checkpoint.chkpt')

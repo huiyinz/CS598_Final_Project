@@ -167,7 +167,6 @@ ptb/
 ptb/
 files/
 # Files
-*.ipynb
 *.m
 
 *.pt

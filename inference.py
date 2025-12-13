@@ -82,6 +82,14 @@ if __name__ == '__main__':
         model.resize_token_embeddings(len(tokenizer))
         model_hidden_size = model.config.hidden_size
     
+    if args.model == 'big_ablated':
+        model = BigBirdForMaskedLM.from_pretrained("google/bigbird-roberta-base").to(device)
+        model.config.attention_type = 'block_sparse'
+        tokenizer = BigBirdTokenizer.from_pretrained("google/bigbird-roberta-base")
+        tokenizer.add_tokens(custom_tokens)
+        model.resize_token_embeddings(len(tokenizer))
+        model_hidden_size = model.config.hidden_size
+    
     if args.model == 'qa_big':
         model = BigBirdForQuestionAnswering.from_pretrained("google/bigbird-roberta-base").to(device)
         tokenizer = BigBirdTokenizer.from_pretrained("google/bigbird-roberta-base")
@@ -158,7 +166,9 @@ if __name__ == '__main__':
         
     test_loader = DataLoader(test_dataset, batch_size=args.batch, shuffle=False)   
     
-    checkpoint = torch.load(f'./runs/checkpoint/{args.checkpoint}/best_checkpoint.chkpt', map_location = args.device)
+    checkpoint = torch.load(f'./runs/checkpoint/{args.checkpoint}/best_checkpoint.chkpt', 
+                            map_location = args.device,
+                            weights_only=False)
     model.load_state_dict(checkpoint['model'])
     print(f'Inferencing checkpoint {args.checkpoint}... ')
     inference(model, tokenizer, test_loader, device, args)
